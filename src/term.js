@@ -1755,6 +1755,12 @@ Terminal.prototype.scrollDisp = function(disp) {
 };
 
 Terminal.prototype.write = function(data) {
+  // Check if data is an array and convert it to a string
+  if (data instanceof Uint8Array || data instanceof Uint16Array || data instanceof Uint32Array) {
+    data = data.toString();
+  }
+
+
   var l = data.length
     , i = 0
     , j
