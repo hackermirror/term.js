@@ -794,13 +794,28 @@ Terminal.prototype.open = function(parent) {
 
   // Parse user-agent strings.
   if (this.context.navigator && this.context.navigator.userAgent) {
-    this.isMac = !!~this.context.navigator.userAgent.indexOf('Mac');
-    this.isIpad = !!~this.context.navigator.userAgent.indexOf('iPad');
-    this.isIphone = !!~this.context.navigator.userAgent.indexOf('iPhone');
     this.isAndroid = !!~this.context.navigator.userAgent.indexOf('Android');
     this.isMobile = this.isIpad || this.isIphone || this.isAndroid;
     this.isMSIE = !!~this.context.navigator.userAgent.indexOf('MSIE');
   }
+
+  /*
+   * Find the users platform. We use this to interpret the meta key
+   * and ISO third level shifts.
+   * http://stackoverflow.com/questions/19877924/what-is-the-list-of-possible-values-for-navigator-platform-as-of-today
+   */
+    if (this.context.navigator && this.context.navigator.platform) {
+      this.isMac = contains(
+        this.context.navigator.platform,
+        ['Macintosh', 'MacIntel', 'MacPPC', 'Mac68K']
+      );
+      this.isIpad = this.context.navigator.platform === 'iPad';
+      this.isIphone = this.context.navigator.platform === 'iPhone';
+      this.isMSWindows = contains(
+        this.context.navigator.platform,
+        ['Windows', 'Win16', 'Win32', 'WinCE']
+      );
+    }
 
   // Create our main terminal element.
   this.element = this.document.createElement('div');
@@ -3065,7 +3080,8 @@ Terminal.prototype.keyDown = function(ev) {
           // ^] - group sep
           key = String.fromCharCode(29);
         }
-      } else if (ev.altKey) {
+      } else if (!this.isMac && ev.altKey && !ev.ctrlKey && !ev.metaKey) {
+        // On Mac this is a third level shift. Use <Esc> instead.
         if (ev.keyCode >= 65 && ev.keyCode <= 90) {
           key = '\x1b' + String.fromCharCode(ev.keyCode + 32);
         } else if (ev.keyCode === 192) {
@@ -3075,6 +3091,11 @@ Terminal.prototype.keyDown = function(ev) {
         }
       }
       break;
+  }
+
+
+  if (isThirdLevelShift(this, ev)) {
+    return true;
   }
 
   if (!key) return true;
@@ -3128,7 +3149,11 @@ Terminal.prototype.keyPress = function(ev) {
     return false;
   }
 
-  if (!key || ev.ctrlKey || ev.altKey || ev.metaKey) return false;
+    if (!key || (
+      (ev.altKey || ev.ctrlKey || ev.metaKey) && !isThirdLevelShift(this, ev)
+    )) {
+      return false;
+    }
 
   key = String.fromCharCode(key);
 
@@ -6100,12 +6125,30 @@ Terminal.charsets.ISOLatin = null; // /A
  * Helpers
  */
 
+function contains(el, arr) {
+    for (var i = 0; i < arr.length; i += 1) {
+        if (el === arr[i]) {
+            return true;
+        }
+    }
+    return false;
+}
+
 function on(el, type, handler, capture) {
   el.addEventListener(type, handler, capture || false);
 }
 
 function off(el, type, handler, capture) {
   el.removeEventListener(type, handler, capture || false);
+}
+
+function isThirdLevelShift(term, ev) {
+    var thirdLevelKey =
+            (term.isMac && ev.altKey && !ev.ctrlKey && !ev.metaKey) ||
+            (term.isMSWindows && ev.altKey && ev.ctrlKey && !ev.metaKey);
+
+    // Don't invoke for arrows, pageDown, home, backspace, etc.
+    return thirdLevelKey && (!ev.keyCode || ev.keyCode > 47);
 }
 
 function cancel(ev) {
